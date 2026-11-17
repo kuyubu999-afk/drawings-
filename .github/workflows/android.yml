@@ -27,31 +27,26 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Align Java and Kotlin JVM targets to 17
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          root = Path("android-project")
-          for path in list(root.rglob("*.gradle")) + list(root.rglob("*.gradle.kts")):
-              text = path.read_text()
-              updated = text
-              updated = updated.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
-              updated = re.sub(r'(sourceCompatibility|targetCompatibility)\s*=\s*["\']1\.8["\']', r'\1 = "17"', updated)
-              updated = re.sub(r'(jvmTarget\s*=\s*)["\']1\.8["\']', r'\1"17"', updated)
-              if updated != text:
-                  path.write_text(updated)
-                  print(f"Updated JVM target in {path}")
-          PY
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
+      - name: Force Java compiler target to JVM 17
+        run: |
+          cat > /tmp/jvm17.init.gradle <<'EOF'
+          gradle.projectsEvaluated {
+              allprojects {
+                  tasks.withType(org.gradle.api.tasks.compile.JavaCompile).all {
+                      sourceCompatibility = "17"
+                      targetCompatibility = "17"
+                  }
+              }
+          }
+          EOF
+
       - name: Build debug APK
-        run: gradle -p android-project assembleDebug
+        run: gradle -I /tmp/jvm17.init.gradle -p android-project assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
