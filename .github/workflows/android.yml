@@ -21,11 +21,24 @@ jobs:
           base64 -d InkWashStudio_Android_MVP.zip.b64 > /tmp/inkwash.zip
           unzip -q /tmp/inkwash.zip -d android-project
 
-      - name: Show Kotlin source around compiler errors
+      - name: Fix Kotlin source compile errors
         run: |
-          FILE=$(find android-project -name MainActivity.kt | head -n 1)
-          echo "SOURCE FILE: $FILE"
-          nl -ba "$FILE" | sed -n '45,175p'
+          python3 - <<'PY'
+          from pathlib import Path
+          p = next(Path("android-project").rglob("MainActivity.kt"))
+          s = p.read_text()
+          replacements = {
+              "singleLine = true": "setSingleLine(true)",
+              "(0.299*r+0.587*g+0.114*b)/255f": "(0.299f*r.toFloat()+0.587f*g.toFloat()+0.114f*b.toFloat())/255f",
+              "style=Paint.Style.STROKE": "setStyle(Paint.Style.STROKE)"
+          }
+          for old, new in replacements.items():
+              if old not in s:
+                  raise SystemExit(f"Expected source text not found: {old}")
+              s = s.replace(old, new)
+          p.write_text(s)
+          print(f"Patched {p}")
+          PY
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
